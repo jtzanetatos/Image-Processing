@@ -18,10 +18,22 @@ import numpy as np
 import matplotlib.pyplot as plt
 import sys
 import os
+import wx
 
 __author__ = "I. Tzanetatos"
 __version__ = "1.0.0"
 
+
+def get_path(wildcard):
+    wx.App(None)
+    style = wx.FD_OPEN | wx.FD_FILE_MUST_EXIST
+    dialog = wx.FileDialog(None, 'Open', wildcard=wildcard, style=style)
+    if dialog.ShowModal() == wx.ID_OK:
+        path = dialog.GetPath()
+    else:
+        path = None
+    dialog.Destroy()
+    return path
 
 def readFrame():
     '''
@@ -35,7 +47,11 @@ def readFrame():
         
     '''
     # Read frame
-    img = cv.imread('inpt_img.jpg')
+    img = cv.imread(get_path('*.jpg'))
+    
+    # No frame entered
+    if img is None:
+        sys.exit("No input frame entered, exiting..")
     
     # Get frame's dimensions
     try:
@@ -45,13 +61,18 @@ def readFrame():
     except ValueError:
         row, colm = img.shape
         
+        # Set col to None
+        col = None
         # Return image & image dimensions
-        return (row, colm, img)
-    except:
-        sys.exit("Something went wrong, exiting.")
-    else:
-        # Return image & image dimensions
-        return (row, colm, col, img)
+        # return (row, colm, img)
+    # No frame entered
+    # except AttributeError:
+    #     sys.exit("No input frame entered, exiting..")
+    # except:
+    #     sys.exit("Something went wrong, exiting...")
+    # else:
+    # Return image & image dimensions
+    return (row, colm, col, img)
 
 def frameScale():
     # TODO: re-implement input legality, while it works behaviour not consistent.
@@ -67,33 +88,37 @@ def frameScale():
     '''
     
     # Ensure input legality
-    while True:
-        try:
-            kern_size = input("Enter kernel size (must be odd):>> ") or '3'
-            # BUG: Need to fix sanity check
-            if kern_size%2 != 0 and kern_size > 1:
-                break
+    try:
+        kern_size = int(input("Enter kernel size (must be odd):>> "))
+        # BUG: Need to fix sanity check
+        while kern_size%2 == 0 and kern_size == 1:
+            print("Number not odd or not greater than 1.")
+            kern_size = int(input("Enter kernel size (must be odd):>> "))
+    except ValueError:
+        # print("User did not enter a number.")
+        # kern_size = int(input("Enter kernel size (must be odd):>> "))
+        while True:
+            try:
+                kern_size = int(input("Enter kernel size (must be odd):>> "))
+                
+            except ValueError:
+                print("User did not enter a number.")
+                kern_size = int(input("Enter kernel size (must be odd):>> "))
             else:
-                print("Number not odd or not greater than 1.")
-                kern_size = input("Enter kernel size (must be odd):>> ") or '3'
-        except TypeError:
-            print("TypeError.")
-            kern_size = input("Enter kernel size (must be odd):>> ") or '3'
-        except ValueError:
-            print("User did not enter a number.")
-            kern_size = input("Enter kernel size (must be odd):>> ") or '3'
+                break
     print("Kernel size:>> ", kern_size)
     # Return kernel size
     return np.uint8(kern_size)
 
-def kernelProc(row, colm, col, img, kern_size):
+def kernelProc(row, colm, img, kern_size, col=None):
     '''
     Image processing via kernel means. Functions has a generic structure for
     any processing that requires image kernels. Potential applications include
     median kernel filtering, mean kernel filtering, median element kernel filtering.
     
     For applications such as median/mean kernel filtering, it is more efficient
-    to utilize the already implemented functions found in OpenCV.
+    to utilize the already implemented functions found in OpenCV. 
+    (See cv2.medianBlur)
     
     Parameters
     ----------
@@ -112,22 +137,21 @@ def kernelProc(row, colm, col, img, kern_size):
         Postprocessed frame, via kernel means.
     
     '''
-    # Initialize output array
-    try:
-        out_frame = np.zeros((row//kern_size, colm//kern_size, col), dtype=np.uint8)
-    except NameError:
-        out_frame = np.zeros((row//kern_size, colm//kern_size), dtype=np.uint8)
-    
+    print("Row/kern ",row//kern_size)
+    print("Colm/kern ",colm//kern_size)
     # Width & height indices
     hdx = 0
     wdx = 0
     # Can also implement with:
-        # out_frame = cv.medianBlur(img, ksize=kern_size)
+    # out_frame = cv.medianBlur(img, ksize=kern_size)
     # Safeguard for grayscale/binary images
     try:
-        assert col
+        assert col, "Image is grayscale"
     # Image is grayscale/binary
-    except NameError:
+    except AssertionError:
+        # Initialize output array
+        out_frame = np.zeros((row//kern_size, colm//kern_size), dtype=np.uint8)
+        
         for i in range(1, row, kern_size):
             for k in range(1, colm, kern_size):
                 # Median element kernel
@@ -142,6 +166,9 @@ def kernelProc(row, colm, col, img, kern_size):
         
     # Image is BGR/RGB
     else:
+        # Initialize output array
+        out_frame = np.zeros((row//kern_size, colm//kern_size, col), dtype=np.uint8)
+        
         # Median image kernels
         for c in range(col):
             for i in range(1, row, kern_size):
@@ -222,11 +249,8 @@ def main():
     None.
     
     '''
-    
-    try:
-        width, height, col, img = readFrame()
-    except NameError:
-        width, height, img = readFrame()
+    # Read frame & exctract dimensions
+    width, height, col, img = readFrame()
     
     # Plot input frame
     plotFrame(img)
@@ -235,7 +259,7 @@ def main():
     kern_size = frameScale()
     
     # Output frame
-    out_frame = kernelProc(width, height, col, img, kern_size)
+    out_frame = kernelProc(width, height, img, kern_size, col)
     
     # Plot output frame
     plotFrame(out_frame)
